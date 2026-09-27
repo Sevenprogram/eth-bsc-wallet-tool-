@@ -1,0 +1,27 @@
+[Unit]
+Description=Chainfolio wallet dashboard
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=chainfolio
+Group=chainfolio
+WorkingDirectory=/opt/chainfolio
+EnvironmentFile=/etc/chainfolio.env
+# Install Node system-wide; adjust this path if command -v node differs.
+ExecStart=/usr/bin/node /opt/chainfolio/server.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=25
+UMask=0077
+StateDirectory=chainfolio
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+{
+  "name": "chainfolio-local",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --env-file-if-exists=.env server.mjs", "test": "node --test" },
+  "engines": { "node": ">=22.13" },
+  "dependencies": { "ethers": "^6.16.0" }
+}

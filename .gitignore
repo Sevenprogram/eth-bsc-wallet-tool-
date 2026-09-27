@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+data/
+*.log
+.DS_Store
+backups/
+chainfolio-backup*.json
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.tar.gz
+/preview.png
+/autorun-preview.png
+/rpc-configured.png
