@@ -4,7 +4,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { checkServerIdentity } from 'node:tls';
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, mkdir, rm, symlink, cp } from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
@@ -129,4 +129,31 @@ test('Linux migration stops only a verified source wallet process', { skip: proc
   assert.notEqual((await call(other)).status, 0);
   assert.equal(old.exitCode, null);
   const result = await call(directory); assert.equal(result.status, 0, result.error);
+});
+
+test('gateway starts when systemd launches it through the release symlink', { timeout: 15000 }, async t => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'chainfolio-gateway-link-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  // Mirror the installed layout: /opt/.../current -> releases/<stamp>.
+  await cp(new URL('../deploy', import.meta.url), path.join(directory, 'releases', 'v1', 'deploy'), { recursive: true });
+  await symlink(path.join(directory, 'releases', 'v1'), path.join(directory, 'current'));
+  const cert = path.join(directory, 'tls.crt'), key = path.join(directory, 'tls.key');
+  const ssl = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=127.0.0.1',
+    '-keyout', key, '-out', cert], { encoding: 'utf8' });
+  assert.equal(ssl.status, 0, ssl.stderr);
+  const probe = http.createServer(); const port = await listen(probe); await stop(probe);
+  const config = path.join(directory, 'gateway.json');
+  await writeFile(config, JSON.stringify({ origin: `https://127.0.0.1:${port}`, backendPort: 18099, cert, key,
+    authorizationHash: createHash('sha256').update('x').digest('hex') }));
+  const child = spawn(process.execPath, [path.join(directory, 'current', 'deploy', 'gateway.mjs'), config], { stdio: 'pipe' });
+  t.after(() => child.kill());
+  let exited = false; child.once('exit', () => { exited = true; });
+  let status;
+  for (let i = 0; i < 50 && !exited && !status; i++) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    status = await new Promise(resolve => https.get({ hostname: '127.0.0.1', port, path: '/', rejectUnauthorized: false,
+      headers: { Host: `127.0.0.1:${port}` } }, res => { res.resume(); resolve(res.statusCode); }).on('error', () => resolve(undefined)));
+  }
+  assert.equal(exited, false, 'gateway exited instead of listening');
+  assert.equal(status, 401);
 });

@@ -113,9 +113,13 @@ trap 'failure "$?" "$LINENO"' ERR
 
 echo '[1/7] 检查 Node.js 和运行环境'
 NODE=$(command -v node || true)
-if [[ -n $NODE ]] && "$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number);if(a<22||(a===22&&b<13))process.exit(1);require("node:sqlite")' >/dev/null 2>&1 && command -v npm >/dev/null; then
-  NODE=$(readlink -f "$NODE")
+# The binary is copied for a sandboxed service user. Resolve launchers such as /snap/bin/node
+# (a link to /usr/bin/snap) to the real executable; snap builds cannot run under NoNewPrivileges.
+if [[ -n $NODE ]] && "$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number);if(a<22||(a===22&&b<13))process.exit(1);require("node:sqlite")' >/dev/null 2>&1 && command -v npm >/dev/null \
+   && NODE=$("$NODE" -p 'require("fs").realpathSync(process.execPath)') && [[ $NODE != /snap/* && $(basename -- "$NODE") == node ]]; then
+  echo "使用系统 Node：$NODE"
 else
+  echo '系统 Node 不可用于后台服务（版本不足、缺少 npm，或为 snap 安装），改用 Node.js 官方 24 LTS'
   case $(uname -m) in x86_64) ARCH=x64;; aarch64|arm64) ARCH=arm64;; *) die '自动安装 Node 仅支持 x64/arm64';; esac
   curl -fsSL --proto '=https' --tlsv1.2 https://nodejs.org/dist/latest-v24.x/SHASUMS256.txt -o "$TMP/SHASUMS256.txt"
   ARCHIVE=$(awk -v arch="$ARCH" '$2 ~ ("^node-v24\\.[0-9]+\\.[0-9]+-linux-" arch "\\.tar\\.xz$") {print $2}' "$TMP/SHASUMS256.txt")
@@ -164,6 +168,7 @@ install -d -m 700 "$VERSION_CONFIG"
 cp "$SOURCE/package.json" "$SOURCE/package-lock.json" "$SOURCE/server.mjs" "$RELEASE/"
 cp -R "$SOURCE/lib" "$SOURCE/public" "$SOURCE/deploy" "$RELEASE/"
 install -m 755 "$NODE" "$RELEASE/runtime/node"
+env -i "$RELEASE/runtime/node" -e 'require("node:sqlite")' || die '复制后的 Node 无法独立运行，请安装 Node.js 官方版本后重试'
 (cd "$RELEASE" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund)
 chmod -R a+rX "$RELEASE"
 id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --user-group --home-dir "$DATA" --shell /usr/sbin/nologin "$SERVICE_USER"
@@ -292,7 +297,14 @@ for attempt in {1..20}; do
   if "$RELEASE/runtime/node" "$RELEASE/deploy/setup.mjs" check "$VERSION_CONFIG" >"$TMP/health.log" 2>&1; then HEALTHY=1; break; fi
   sleep 1
 done
-if ((HEALTHY == 0)); then cat "$TMP/health.log" >&2; false; fi
+if ((HEALTHY == 0)); then
+  cat "$TMP/health.log" >&2
+  # Show why a service failed before the rollback removes its unit.
+  echo '---- 服务状态与日志 ----' >&2
+  systemctl status chainfolio-server chainfolio-web --no-pager -l >&2 || true
+  journalctl -u chainfolio-server -u chainfolio-web -n 40 --no-pager >&2 || true
+  false
+fi
 cat "$TMP/health.log"
 systemctl enable chainfolio-server chainfolio-web >/dev/null
 

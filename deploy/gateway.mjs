@@ -1,6 +1,6 @@
 import https from 'node:https';
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
@@ -68,7 +68,9 @@ export function createGateway(config) {
   return server;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// systemd starts this through the /opt/.../current symlink; Node resolves the module URL to the
+// real release path but keeps argv[1] as given, so compare real paths.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const config = JSON.parse(readFileSync(process.argv[2], 'utf8'));
   const server = createGateway(config);
   server.on('error', error => { console.error(`入口启动失败: ${error.code || error.message}`); process.exit(1); });
