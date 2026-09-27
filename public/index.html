@@ -1,15 +1,176 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Chainfolio · 钱包工作台</title><link rel="stylesheet" href="/style.css"></head>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Chainfolio · 钱包工作台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
 <body>
-<aside class="sidebar"><a class="brand" href="/">◈ <span>chainfolio<span class="brand-dot">.</span></span></a><div class="workspace"><span class="workspace-icon">W</span><div>我的工作空间<small>LOCAL WORKSPACE</small></div><span class="local-dot"></span></div><p class="nav-label">工作台</p><button class="nav active" id="nav-wallets"><span>▦</span> 钱包总览 <span class="nav-count" id="nav-count">0</span></button><button class="nav" id="nav-import"><span>↓</span> 导入地址</button><button class="nav" id="nav-tasks"><span>◷</span> 任务记录</button><button class="nav" id="nav-backup"><span>◇</span> 备份与恢复</button><button class="nav" id="nav-rpc"><span>⚙</span> 网络设置</button><div class="sidebar-bottom"><div class="lock">◇</div><strong>密钥留在本地</strong><p>加密存储 · 只读余额查询<br>你的钱包，由你掌控。</p><span class="version">LOCAL EDITION <b>v0.2</b></span></div></aside>
-<div class="main"><header><div class="breadcrumb">工作空间 <span>/</span> <strong>钱包总览</strong></div><div class="header-right"><button class="text-button" id="settings">网络设置</button><button class="text-button" id="tasks">任务</button><button class="text-button" id="backup">备份</button><span class="connection" id="connection">正在连接本地服务</span><div class="avatar">L</div></div></header><main>
-<div class="page-heading"><div><div class="eyebrow">YOUR ONCHAIN WORKSPACE</div><h1>钱包总览 <span>Overview</span></h1><p>一个工作台，管理你的 Ethereum 与 BNB Smart Chain 钱包。</p></div><div class="actions"><button class="secondary" id="generate">＋ 批量生成钱包</button><button class="primary" id="auto-start">▶ 自动运行</button><button class="secondary" id="auto-pause" hidden>Ⅱ 暂停自动运行</button></div></div>
-<div class="notice" id="demo-notice"><span><b>演示模式</b> 当前为示例数据，仅用于预览页面。</span><button id="switch-mode">进入真实钱包 →</button></div>
-<section class="autorun-panel" id="autorun-panel"><div><strong>持续生成与余额查询</strong><p id="autorun-description">总数量不限 · 每批生成后自动查询 · 直到手动暂停</p></div><span id="autorun-status">未启动</span></section><div id="warnings" class="notice" hidden></div><div class="stats"><article class="stat"><div class="stat-label">钱包总数 <span class="stat-icon">▦</span></div><div class="stat-value" id="stat-total">0</div><div class="stat-foot"><span class="green" id="stat-funded">0 个有余额</span><span>双链地址统一管理</span></div></article><article class="stat"><div class="stat-label">Ethereum 总余额 <span class="coin eth">◆</span></div><div class="stat-value"><span id="stat-eth">0</span><small>ETH</small></div><div class="stat-foot"><span class="chain-dot purple"></span> Ethereum Mainnet <span id="eth-coverage"></span></div></article><article class="stat"><div class="stat-label">BNB Smart Chain 总余额 <span class="coin bsc">◇</span></div><div class="stat-value"><span id="stat-bsc">0</span><small>BNB</small></div><div class="stat-foot"><span class="chain-dot yellow"></span> BNB Smart Chain <span id="bsc-coverage"></span></div></article><article class="stat"><div class="stat-label">查询状态 <span class="stat-icon">↻</span></div><div class="stat-value" id="stat-status">准备就绪</div><div class="stat-foot" id="stat-time">尚未执行余额查询</div></article></div>
-<div class="section-heading"><div><h2>钱包列表 <span id="list-count">0</span></h2><p>查看地址与跨链资产，跟踪每一次查询。</p></div><div class="actions"><button class="secondary" id="import">↓ 导入地址</button><button class="secondary" id="export">↗ 导出 CSV</button><button class="secondary" id="edit-selected">编辑所选</button><button class="dark" id="refresh">↻ 查询余额</button></div></div>
-<section class="table-card"><div class="toolbar"><div class="tabs" role="group" aria-label="钱包筛选"><button class="tab active" data-filter="all">全部钱包</button><button class="tab" data-filter="high">高余额钱包 <span id="high-count">0</span></button><button class="tab" data-filter="funded">有余额</button><button class="tab" data-filter="error">查询异常</button></div><label class="search"><span>⌕</span><input id="search" placeholder="搜索地址或批次…" aria-label="搜索地址或批次"><span>⌘ K</span></label></div><p class="high-filter-note" id="high-filter-note" hidden>ETH &gt; 0.1 或 BNB &gt; 0.1，任意一条链满足即显示；按最近一次成功值筛选，过期数据会标注。</p><div class="advanced-filters"><select id="batch-filter" aria-label="批次筛选"><option value="">全部批次</option></select><select id="group-filter" aria-label="分组筛选"><option value="">全部分组</option></select><select id="sort" aria-label="排序"><option value="newest">最新创建</option><option value="oldest">最早创建</option><option value="eth">ETH 余额从高到低</option><option value="bsc">BNB 余额从高到低</option><option value="address">地址排序</option></select><select id="amount-chain" aria-label="余额区间网络"><option value="eth">ETH 区间</option><option value="bsc">BNB 区间</option></select><input id="min-amount" placeholder="最小余额" aria-label="最小余额" inputmode="decimal"><span>—</span><input id="max-amount" placeholder="最大余额" aria-label="最大余额" inputmode="decimal"><button id="apply-amount" class="text-button">应用</button><button id="clear-filters" class="text-button">重置</button></div><div class="task-banner" id="task-banner" hidden></div><div class="table-wrap"><table><thead><tr><th><input type="checkbox" id="select-page" aria-label="选择本页钱包"></th><th>钱包地址</th><th>私钥</th><th>ETH 余额 <span class="tiny-coin purple">◆</span></th><th>BNB 余额 <span class="tiny-coin yellow">◇</span></th><th>备注 / 分组 / 批次</th><th>状态</th><th>最近查询</th><th></th></tr></thead><tbody id="wallet-rows"></tbody></table></div><div class="empty" id="empty" hidden><span>▦</span><h3>这里还没有钱包</h3><p>生成一批新钱包，或导入已有地址开始查看。</p></div><div class="table-footer"><span id="range">共 0 个钱包</span><span id="selected-count"></span><div class="pagination"><select id="page-size" aria-label="每页数量"><option value="8">8 / 页</option><option value="20">20 / 页</option><option value="50">50 / 页</option></select><button id="prev" aria-label="上一页">←</button><span id="page-label">1 / 1</span><button id="next" aria-label="下一页">→</button></div></div></section>
-<div class="bottom-note"><span>◇ 余额查询仅使用公开地址，不读取私钥。</span><button id="demo-toggle">查看演示数据</button></div>
-</main><footer><span>CHAINFOLIO <span class="footer-dot">/</span> 本地钱包管理工具</span><span>Ethereum <span class="footer-dot">·</span> BNB Smart Chain</span></footer></div>
-<dialog id="modal"><form id="modal-form"><div class="modal-head"><div><div class="eyebrow">CHAINFOLIO WORKSPACE</div><h2 id="modal-title"></h2></div><button type="button" class="close" id="close-modal" aria-label="关闭">×</button></div><div id="modal-body"></div><div id="modal-error" class="form-error" role="alert"></div><div class="modal-actions"><button type="button" class="secondary" id="cancel-modal">取消</button><button type="submit" class="primary" id="submit-modal">确认</button></div></form></dialog><div id="toast" role="status" hidden></div><script src="/app.js" type="module"></script>
-</body></html>
+<svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-logo" viewBox="0 0 24 24"><path d="M12 2 21 12 12 22 3 12Z"/><path d="M12 7.5 16.5 12 12 16.5 7.5 12Z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 21h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5Z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 4h18v5H3zM5 9v11h14V9M10 13h4"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.2-8.2M16 7l3 3"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h12v4M4 7v10a2 2 0 0 0 2 2h14V9H6a2 2 0 0 1-2-2Z"/><path d="M16 14h.01"/></symbol>
+</svg>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/"><svg class="icon brand-mark"><use href="#i-logo"/></svg>Chainfolio<span class="brand-tag">本地版</span></a>
+    <div class="topbar-status">
+      <span class="chip" id="rpc-eth" title="Ethereum RPC"><i class="dot"></i>ETH</span>
+      <span class="chip" id="rpc-bsc" title="BNB Smart Chain RPC"><i class="dot"></i>BSC</span>
+      <span class="chip" id="connection"><i class="dot"></i>正在连接</span>
+    </div>
+    <nav class="topbar-actions" aria-label="工具">
+      <button class="ghost" id="tasks" aria-label="任务记录" title="任务记录"><svg class="icon"><use href="#i-clock"/></svg><span>任务</span></button>
+      <button class="ghost" id="backup" aria-label="备份与恢复" title="备份与恢复"><svg class="icon"><use href="#i-archive"/></svg><span>备份</span></button>
+      <button class="ghost" id="settings" aria-label="网络设置" title="网络设置"><svg class="icon"><use href="#i-sliders"/></svg><span>网络设置</span></button>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="banner info" id="demo-notice"><svg class="icon"><use href="#i-alert"/></svg><span><b>演示模式</b>当前为示例数据，不代表真实资产。</span><button class="text-button" id="switch-mode">进入真实钱包<svg class="icon"><use href="#i-chevron-right"/></svg></button></div>
+  <div class="banner warn" id="warnings" hidden></div>
+
+  <section class="page-head">
+    <div>
+      <h1>钱包</h1>
+      <p>Ethereum 与 BNB Smart Chain · 共 <b id="list-count">0</b> 个地址</p>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="auto-start">自动运行</button>
+      <button class="secondary" id="auto-pause" hidden>暂停自动运行</button>
+      <button class="secondary" id="import"><svg class="icon"><use href="#i-import"/></svg>导入地址</button>
+      <button class="primary" id="generate"><svg class="icon"><use href="#i-plus"/></svg>批量生成</button>
+    </div>
+  </section>
+
+  <section class="autorun" id="autorun-panel" hidden>
+    <div class="autorun-head"><span class="pulse"></span><strong>自动运行</strong><span class="badge" id="autorun-status">未启动</span></div>
+    <p id="autorun-description"></p>
+  </section>
+
+  <section class="stats">
+    <article class="stat">
+      <div class="stat-label"><svg class="icon"><use href="#i-wallet"/></svg>钱包总数</div>
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-foot"><span id="stat-funded">0 个有余额</span><span class="sep">·</span><span>高余额 <b id="stat-high">0</b></span></div>
+    </article>
+    <article class="stat">
+      <div class="stat-label"><span class="chain-badge eth">Ξ</span>Ethereum</div>
+      <div class="stat-value"><span id="stat-eth">0</span><small>ETH</small></div>
+      <div class="stat-foot" id="eth-coverage"></div>
+    </article>
+    <article class="stat">
+      <div class="stat-label"><span class="chain-badge bsc">B</span>BNB Smart Chain</div>
+      <div class="stat-value"><span id="stat-bsc">0</span><small>BNB</small></div>
+      <div class="stat-foot" id="bsc-coverage"></div>
+    </article>
+    <article class="stat">
+      <div class="stat-label"><svg class="icon"><use href="#i-refresh"/></svg>查询状态</div>
+      <div class="stat-value" id="stat-status">准备就绪</div>
+      <div class="stat-foot" id="stat-time"></div>
+    </article>
+  </section>
+
+  <div class="task-banner" id="task-banner" hidden></div>
+
+  <section class="card table-card">
+    <div class="toolbar">
+      <div class="tabs" role="group" aria-label="钱包筛选">
+        <button class="tab active" data-filter="all">全部</button>
+        <button class="tab" data-filter="high">高余额 <span class="count" id="high-count">0</span></button>
+        <button class="tab" data-filter="funded">有余额</button>
+        <button class="tab" data-filter="error">查询异常</button>
+      </div>
+      <label class="search"><svg class="icon"><use href="#i-search"/></svg><input id="search" placeholder="搜索地址、批次、备注" aria-label="搜索地址、批次或备注"><kbd>⌘K</kbd></label>
+    </div>
+
+    <div class="filters">
+      <select id="batch-filter" aria-label="批次筛选"><option value="">全部批次</option></select>
+      <select id="group-filter" aria-label="分组筛选"><option value="">全部分组</option></select>
+      <select id="sort" aria-label="排序"><option value="newest">最新创建</option><option value="oldest">最早创建</option><option value="eth">ETH 余额从高到低</option><option value="bsc">BNB 余额从高到低</option><option value="address">按地址排序</option></select>
+      <div class="range">
+        <select id="amount-chain" aria-label="余额区间网络"><option value="eth">ETH</option><option value="bsc">BNB</option></select>
+        <input id="min-amount" placeholder="最小" aria-label="最小余额" inputmode="decimal">
+        <span class="range-sep">–</span>
+        <input id="max-amount" placeholder="最大" aria-label="最大余额" inputmode="decimal">
+        <button id="apply-amount" class="secondary sm">应用</button>
+      </div>
+      <button id="clear-filters" class="text-button">重置筛选</button>
+    </div>
+    <p class="high-filter-note" id="high-filter-note" hidden>ETH &gt; 0.1 或 BNB &gt; 0.1，任意一条链满足即显示；按最近一次成功值筛选，过期数据会标注。</p>
+
+    <div class="bulk-bar">
+      <span class="bulk-scope" id="selected-count"></span>
+      <div class="actions">
+        <button class="secondary sm" id="export"><svg class="icon"><use href="#i-export"/></svg>导出 CSV</button>
+        <button class="secondary sm" id="edit-selected"><svg class="icon"><use href="#i-edit"/></svg>编辑所选</button>
+        <button class="primary sm" id="refresh"><svg class="icon"><use href="#i-refresh"/></svg>查询余额</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="col-check"><input type="checkbox" id="select-page" aria-label="选择本页钱包"></th>
+          <th>地址</th>
+          <th class="num"><span class="th-chain"><i class="chain-dot eth"></i>ETH</span></th>
+          <th class="num"><span class="th-chain"><i class="chain-dot bsc"></i>BNB</span></th>
+          <th>状态</th>
+          <th class="col-time">最近查询</th>
+          <th class="col-key">私钥</th>
+          <th class="col-more"><span class="sr-only">详情</span></th>
+        </tr></thead>
+        <tbody id="wallet-rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" hidden><svg class="icon"><use href="#i-wallet"/></svg><h3>这里还没有钱包</h3><p>批量生成新钱包，或导入已有地址开始查看。</p></div>
+
+    <div class="table-footer">
+      <span id="range">共 0 个钱包</span>
+      <div class="pagination">
+        <select id="page-size" aria-label="每页数量"><option value="8">8 / 页</option><option value="20">20 / 页</option><option value="50">50 / 页</option></select>
+        <button class="icon-btn bordered" id="prev" aria-label="上一页"><svg class="icon"><use href="#i-chevron-left"/></svg></button>
+        <span id="page-label">1 / 1</span>
+        <button class="icon-btn bordered" id="next" aria-label="下一页"><svg class="icon"><use href="#i-chevron-right"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page-foot">
+    <span>余额查询只使用公开地址，不读取私钥。数据保存在本机。</span>
+    <button class="text-button" id="demo-toggle">查看演示数据</button>
+  </footer>
+</main>
+
+<dialog id="modal">
+  <form id="modal-form">
+    <div class="modal-head"><h2 id="modal-title"></h2><button type="button" class="icon-btn" id="close-modal" aria-label="关闭"><svg class="icon"><use href="#i-x"/></svg></button></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div id="modal-error" class="form-error" role="alert"></div>
+    <div class="modal-actions"><button type="button" class="secondary" id="cancel-modal">取消</button><button type="submit" class="primary" id="submit-modal">确认</button></div>
+  </form>
+</dialog>
+<div id="toast" role="status" hidden></div>
+<script src="/app.js" type="module"></script>
+</body>
+</html>

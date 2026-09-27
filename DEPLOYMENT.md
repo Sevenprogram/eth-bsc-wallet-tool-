@@ -1,5 +1,7 @@
 # GitHub 与 Linux 服务器部署
 
+如需一条命令部署并直接使用 IP + 端口，优先使用 [独立入口一键安装方案](deploy/ONE-CLICK.md)，不需要手动配置 1Panel。下文保留手动 systemd + SSH 隧道的部署方式。
+
 适用于使用 systemd 的 Ubuntu / Debian 服务器。GitHub 保存代码，Node.js 服务在服务器上运行；网页关闭、电脑关机不影响服务器中的任务。当前应用没有远程登录功能，因此通过 SSH 隧道访问，不开放网页端口到公网。
 
 ## 1. 上传到 GitHub
@@ -137,4 +139,4 @@ df -h /var/lib/chainfolio
 
 优先使用网页加密备份。完整目录备份需先停止服务，再备份整个 `/var/lib/chainfolio`，避免遗漏 SQLite WAL；配置文件 `/etc/chainfolio.env` 另外妥善保存。持续运行会增加磁盘和 RPC 用量，请定期查看实际使用情况。
 
-如果需要直接通过公网域名访问，还需要增加登录鉴权、HTTPS、会话保护并适配 Host / Origin 校验，不能仅开放端口或修改监听地址。
+公网 IP 访问可使用 [Ubuntu + 1Panel v1 配置说明](deploy/1panel-v1.md)。程序支持通过 `PUBLIC_ORIGIN` 明确允许一个 HTTPS 公网来源，仍仅监听本机端口；反向代理必须负责 HTTPS 和全站认证，不能仅开放端口。

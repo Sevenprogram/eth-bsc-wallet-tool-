@@ -7,15 +7,17 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-import { Wallet, Interface } from 'ethers';
+import { Wallet, Interface, encryptKeystoreJsonSync } from 'ethers';
 import { openStore, atomicWrite } from '../lib/storage.mjs';
 import { rpc } from '../lib/rpc.mjs';
+import { taskManager } from '../lib/tasks.mjs';
+import { keyReader } from '../lib/keys.mjs';
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const a1='0x0000000000000000000000000000000000000001',a2='0x0000000000000000000000000000000000000002',contract='0x0000000000000000000000000000000000000010';
 const large=123456789012345678901234567890n,password='test-only-password-1234';
 const abi=new Interface(['function balanceOf(address) view returns (uint256)','function decimals() view returns(uint8)','function symbol() view returns(string)']);
 async function freePort(){const s=http.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const port=s.address().port;await new Promise(r=>s.close(r));return port;}
-async function fixture(t,{empty=false,data:existingData}={}){
+async function fixture(t,{empty=false,data:existingData,publicOrigin=''}={}){
   const calls=[],controls={wrongBsc:false,fail:false,delay:0};
   const mock=http.createServer(async(req,res)=>{let text='';for await(const chunk of req)text+=chunk;const c=JSON.parse(text);calls.push({path:req.url,...c});if(controls.delay&&['eth_getBalance','eth_call'].includes(c.method))await pause(controls.delay);
     if(controls.fail&&c.method==='eth_getBalance'){res.writeHead(401);res.end('{}');return;}
@@ -25,7 +27,7 @@ async function fixture(t,{empty=false,data:existingData}={}){
   });await new Promise(r=>mock.listen(0,'127.0.0.1',r));t.after(()=>mock.close());
   const data=existingData||await mkdtemp(path.join(os.tmpdir(),'chainfolio-v2-test-'));const port=await freePort(),base=`http://127.0.0.1:${port}`,rpcBase=`http://127.0.0.1:${mock.address().port}`;
   let child,csrf,output='';
-  async function start(){child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),DATA_DIR:data,ETH_RPC_URL:empty?'':rpcBase,BSC_RPC_URL:empty?'':`${rpcBase}/bsc`},stdio:'pipe'});child.stderr.on('data',b=>output+=b.toString());
+  async function start(){child=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:String(port),DATA_DIR:data,PUBLIC_ORIGIN:publicOrigin,ETH_RPC_URL:empty?'':rpcBase,BSC_RPC_URL:empty?'':`${rpcBase}/bsc`},stdio:'pipe'});child.stderr.on('data',b=>output+=b.toString());
     for(let i=0;i<200;i++){if(child.exitCode!==null)throw Error(output);try{const r=await fetch(base+'/api/state');if(r.ok){csrf=(await r.json()).csrf;return;}}catch{}await pause(20);}throw Error('start timeout '+output);
   }
   async function stop(signal='SIGTERM'){if(child?.exitCode===null){const done=once(child,'exit');child.kill(signal);await done;}}
@@ -35,6 +37,23 @@ async function fixture(t,{empty=false,data:existingData}={}){
   async function importAddresses(addresses){const r=await request('import',{addresses,requestId:randomUUID()});assert.equal(r.status,202,JSON.stringify(r));return {result:r.data,job:await finished(r.data.id)};}
   return {data,base,rpcBase,request,finished,importAddresses,calls,controls,start,stop};
 }
+test('public HTTPS proxy origin remains exact and retains CSRF protection',{timeout:15000},async t=>{
+  const f=await fixture(t,{publicOrigin:'https://203.0.113.10:8443'});
+  const proxyRequest=(headers={},input)=>new Promise((resolve,reject)=>{
+    const req=http.request(f.base+'/api/'+(input?'import':'state'),{method:input?'POST':'GET',headers:{Host:'203.0.113.10:8443',Origin:'https://203.0.113.10:8443','Content-Type':'application/json',...headers}},res=>{
+      let body='';res.on('data',chunk=>body+=chunk);res.on('end',()=>resolve({status:res.statusCode,data:JSON.parse(body)}));
+    });req.on('error',reject);req.end(input?JSON.stringify(input):undefined);
+  });
+  const state=await proxyRequest();assert.equal(state.status,200);
+  assert.equal((await f.request('state')).status,200);
+  for(const headers of [{Host:'evil.example'},{Host:'203.0.113.10'},{Origin:'http://203.0.113.10:8443'},{Origin:'https://evil.example'},{Origin:'null'},{Host:'evil.example','X-Forwarded-Host':'203.0.113.10:8443'}])assert.equal((await proxyRequest(headers)).status,403);
+  const input={addresses:[a1],requestId:randomUUID()};
+  assert.equal((await proxyRequest({},input)).status,403);
+  const accepted=await proxyRequest({'X-Chainfolio-Token':state.data.csrf},input);assert.equal(accepted.status,202);assert.equal((await f.finished(accepted.data.id)).status,'complete');
+  const local=await fixture(t);
+  const blocked=await new Promise((resolve,reject)=>{http.get(local.base+'/api/state',{headers:{Host:'203.0.113.10:8443'}},res=>{res.resume();resolve(res.statusCode);}).on('error',reject);});
+  assert.equal(blocked,403);
+});
 test('import automatically queries; history survives failures; scoped retry, paging, metadata and tokens',{timeout:45000},async t=>{
   const f=await fixture(t);const {request,finished,calls,controls}=f;
   assert.equal((await request('import',{addresses:[a1],requestId:randomUUID()},{Origin:'https://untrusted.example'})).status,403);
@@ -163,4 +182,42 @@ test('private key reveal requires the original password and remains absent from 
   assert.equal((await f.request('reveal-key',{id:w.id,password})).status,409);await writeFile(file,original);
   for(let i=0;i<5;i++)assert.equal((await f.request('reveal-key',{id:w.id,password:'incorrect-password'})).status,403);
   assert.equal((await f.request('reveal-key',{id:w.id,password})).status,429);
+});
+test('query moves to the latest block when a pruned node has dropped the pinned state',{timeout:15000},async t=>{
+  let head=100;const seen=[];
+  const mock=http.createServer(async(req,res)=>{let text='';for await(const chunk of req)text+=chunk;const c=JSON.parse(text);res.setHeader('Content-Type','application/json');
+    if(c.method==='eth_getBalance'){seen.push(c.params[1]);if(Number(c.params[1])<150)return res.end(JSON.stringify({jsonrpc:'2.0',id:1,error:{code:-32000,message:'missing trie node 0xabc (path ) <nil>'}}));}
+    const result=c.method==='eth_chainId'?'0x1':c.method==='eth_blockNumber'?'0x'+(head).toString(16):'0x5';if(c.method==='eth_blockNumber')head=200;
+    res.end(JSON.stringify({jsonrpc:'2.0',id:1,result}));});
+  await new Promise(r=>mock.listen(0,'127.0.0.1',r));t.after(()=>mock.close());
+  const store=await openStore(await mkdtemp(path.join(os.tmpdir(),'chainfolio-prune-')));t.after(()=>store.db.close());
+  const tasks=taskManager(store,()=>({rpc:{eth:`http://127.0.0.1:${mock.address().port}`,bsc:''},tokens:[]}));
+  for(const address of [a1,a2])store.addWallet({id:randomUUID(),address,batch:'B',source:'imported',createdAt:new Date().toISOString()});
+  const {id}=tasks.query(store.all('SELECT id FROM wallets').map(w=>w.id),{chains:['eth'],requestId:randomUUID()});
+  for(let i=0;i<200&&tasks.active;i++)await pause(20);
+  assert.equal(tasks.job(id).status,'complete');assert.equal(tasks.job(id).spec.blocks.eth,'0xc8');
+  for(const b of store.all('SELECT * FROM balances'))assert.deepEqual([b.status,b.block,b.wei],['success','200','5']);
+  assert.equal(seen.filter(b=>b==='0x64').length,2);
+});
+test('wrong wallet passwords are limited across wallets, not per wallet',async t=>{
+  const store=await openStore(await mkdtemp(path.join(os.tmpdir(),'chainfolio-guard-')));t.after(()=>store.db.close());
+  const ids=[];
+  for(let i=0;i<2;i++){const w=Wallet.createRandom(),id=randomUUID();await atomicWrite(path.join(store.data,'keystores',`${id}.json`),encryptKeystoreJsonSync(w,password,{scrypt:{N:16}}));store.addWallet({id,address:w.address,batch:'B',source:'generated',createdAt:new Date().toISOString(),hasKey:true});ids.push(id);}
+  const reveal=keyReader(store),status=input=>reveal(input).then(()=>200,e=>e.status);
+  for(let i=0;i<5;i++)assert.equal(await status({id:ids[i%2],password:'incorrect-password'}),403);
+  assert.equal(await status({id:ids[1],password}),429);
+});
+test('filtered refresh refuses oversized scopes; stale service locks from reused PIDs are cleared',{timeout:20000},async t=>{
+  const data=await mkdtemp(path.join(os.tmpdir(),'chainfolio-scale-'));const store=await openStore(data);
+  store.tx(()=>{for(let i=0;i<10001;i++)store.addWallet({id:randomUUID(),address:'0x'+(i+1000).toString(16).padStart(40,'0'),batch:i?'BIG':'ONE',source:'imported',createdAt:new Date().toISOString()});});store.db.close();
+  const other=spawn('sleep',['30']);t.after(()=>other.kill());await writeFile(path.join(data,'service.lock'),String(other.pid));
+  const f=await fixture(t,{data});
+  const refused=await f.request('refresh',{requestId:randomUUID(),chains:['eth']});assert.equal(refused.status,400);assert.match(refused.data.error,/10001/);
+  const scoped=await f.request('refresh',{batch:'ONE',requestId:randomUUID(),chains:['eth']});assert.equal(scoped.status,202);assert.equal((await f.finished(scoped.data.id)).status,'complete');
+  const csv=(await f.request('export',{batch:'ONE'})).data;assert.equal(csv.trim().split('\r\n').length,2);
+});
+test('oversized RPC responses are rejected without retrying',async t=>{
+  let count=0;const mock=http.createServer((req,res)=>{count++;req.resume();res.end(JSON.stringify({jsonrpc:'2.0',id:1,result:'0x'+'0'.repeat(1100000)}));});
+  await new Promise(r=>mock.listen(0,'127.0.0.1',r));t.after(()=>mock.close());
+  await assert.rejects(rpc(`http://127.0.0.1:${mock.address().port}`,'eth_blockNumber'),/RPC 响应过大/);assert.equal(count,1);
 });
